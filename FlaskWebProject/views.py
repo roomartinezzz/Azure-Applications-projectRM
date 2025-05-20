@@ -12,9 +12,11 @@ from flask_login import current_user, login_user, logout_user, login_required
 from FlaskWebProject.models import User, Post
 import msal
 import uuid
-
+import logging
+ 
+ 
 imageSourceUrl = 'https://'+ app.config['BLOB_ACCOUNT']  + '.blob.core.windows.net/' + app.config['BLOB_CONTAINER']  + '/'
-
+ 
 @app.route('/')
 @app.route('/home')
 @login_required
@@ -26,7 +28,7 @@ def home():
         title='Home Page',
         posts=posts
     )
-
+ 
 @app.route('/new_post', methods=['GET', 'POST'])
 @login_required
 def new_post():
@@ -41,8 +43,8 @@ def new_post():
         imageSource=imageSourceUrl,
         form=form
     )
-
-
+ 
+ 
 @app.route('/post/<int:id>', methods=['GET', 'POST'])
 @login_required
 def post(id):
@@ -57,7 +59,7 @@ def post(id):
         imageSource=imageSourceUrl,
         form=form
     )
-
+ 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -66,8 +68,13 @@ def login():
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
         if user is None or not user.check_password(form.password.data):
+            # --- Failed Login Logic ---
+            app.logger.warning("Failed login attempt for user: %s", form.username.data) 
             flash('Invalid username or password')
             return redirect(url_for('login'))
+        # --- Successful Login Logic ---
+        app.logger.warning("Login successful for user: %s", user.username)
+ 
         login_user(user, remember=form.remember_me.data)
         next_page = request.args.get('next')
         if not next_page or url_parse(next_page).netloc != '':
@@ -76,7 +83,7 @@ def login():
     session["state"] = str(uuid.uuid4())
     auth_url = _build_auth_url(scopes=Config.SCOPE, state=session["state"])
     return render_template('login.html', title='Sign In', form=form, auth_url=auth_url)
-
+ 
 @app.route(Config.REDIRECT_PATH)  # Its absolute URL must match your app's redirect_uri set in AAD
 def authorized():
     if request.args.get('state') != session.get("state"):
@@ -96,7 +103,7 @@ def authorized():
         login_user(user)
         _save_cache(cache)
     return redirect(url_for('home'))
-
+ 
 @app.route('/logout')
 def logout():
     logout_user()
@@ -107,22 +114,22 @@ def logout():
         return redirect(
             Config.AUTHORITY + "/oauth2/v2.0/logout" +
             "?post_logout_redirect_uri=" + url_for("login", _external=True))
-
+ 
     return redirect(url_for('login'))
-
+ 
 def _load_cache():
     # TODO: Load the cache from `msal`, if it exists
     cache = None
     return cache
-
+ 
 def _save_cache(cache):
     # TODO: Save the cache, if it has changed
     pass
-
+ 
 def _build_msal_app(cache=None, authority=None):
     # TODO: Return a ConfidentialClientApplication
     return None
-
+ 
 def _build_auth_url(authority=None, scopes=None, state=None):
     # TODO: Return the full Auth Request URL with appropriate Redirect URI
     return None
